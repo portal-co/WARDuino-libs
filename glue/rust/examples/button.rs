@@ -1,13 +1,21 @@
 // config::BUTTON demo app
-use warduino::{delay, digital_read, digital_write, InterruptMode, pin_mode, PinMode, PinVoltage, sub_interrupt};
+use warduino::{
+    delay, digital_read, digital_write, pin_mode, sub_interrupt, InterruptMode, PinMode, PinVoltage,
+};
 
 mod config;
 
-fn callback(_topic: &str, _payload: &str, _length: u32) {
+fn callback(
+    _topic: *const u8,
+    _topic_length: usize,
+    _payload: *const u8,
+    _payload_length: usize,
+    _length: u32,
+) {
     let voltage = digital_read(config::LED);
     match voltage {
         PinVoltage::HIGH => digital_write(config::LED, PinVoltage::LOW),
-        PinVoltage::LOW => digital_write(config::LED, PinVoltage::HIGH)
+        PinVoltage::LOW => digital_write(config::LED, PinVoltage::HIGH),
     }
 }
 
@@ -22,4 +30,3 @@ pub fn main() {
         delay(1000);
     }
 }
-

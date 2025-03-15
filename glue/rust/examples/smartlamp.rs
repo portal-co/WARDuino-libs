@@ -1,7 +1,9 @@
 // Simple smart lamp app demo
-use warduino::{delay, digital_read, digital_write, InterruptMode, mqtt_connect, mqtt_connected,
-               mqtt_init, mqtt_loop, mqtt_publish, mqtt_subscribe, pin_mode, PinMode, PinVoltage,
-               print, sleep, sub_interrupt, wifi_connect, wifi_connected, wifi_localip};
+use warduino::{
+    delay, digital_read, digital_write, mqtt_connect, mqtt_connected, mqtt_init, mqtt_loop,
+    mqtt_publish, mqtt_subscribe, pin_mode, print, sleep, sub_interrupt, wifi_connect,
+    wifi_connected, wifi_localip, InterruptMode, PinMode, PinVoltage,
+};
 
 mod config;
 
@@ -12,13 +14,24 @@ fn until(done: fn() -> bool, attempt: fn()) {
     }
 }
 
-fn callback(topic: &str, payload: &str, size: u32) {
+fn callback(
+    topic: *const u8,
+    topic_len: usize,
+    payload: *const u8,
+    payload_length: usize,
+    size: u32,
+) {
+    let topic =
+        unsafe { std::str::from_utf8_unchecked(std::slice::from_raw_parts(topic, topic_len)) };
+    let payload = unsafe {
+        std::str::from_utf8_unchecked(std::slice::from_raw_parts(payload, payload_length))
+    };
     print(&format!("Message [{}] {}\n", topic, payload));
 
     if payload.contains("on") {
-        digital_write(config::LED, PinVoltage::HIGH);  // Turn the LED on
+        digital_write(config::LED, PinVoltage::HIGH); // Turn the LED on
     } else {
-        digital_write(config::LED, PinVoltage::LOW);   // Turn the LED off
+        digital_write(config::LED, PinVoltage::LOW); // Turn the LED off
     }
 }
 
@@ -29,7 +42,13 @@ fn invert(voltage: PinVoltage) -> PinVoltage {
     }
 }
 
-fn toggle_led(_topic: &str, _payload: &str, _size: u32) {
+fn toggle_led(
+    _topic: *const u8,
+    _topic_length: usize,
+    _payload: *const u8,
+    _payload_length: usize,
+    _size: u32,
+) {
     // Get current status of LED
     let status = digital_read(config::LED);
     // Toggle LED
@@ -43,7 +62,9 @@ pub fn main() {
     pin_mode(config::BUTTON, PinMode::INPUT);
 
     // Connect to Wi-Fi
-    until(wifi_connected, || wifi_connect(config::SSID, config::PASSWORD));
+    until(wifi_connected, || {
+        wifi_connect(config::SSID, config::PASSWORD)
+    });
     let message: String = "Connected to wifi network with ip: ".to_owned() + &wifi_localip();
     print(&message);
 
