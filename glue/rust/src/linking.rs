@@ -28,7 +28,7 @@ extern {
 
     // Wi-Fi
     #[link_name = "wifi_connect"]
-    pub fn _connect(ssid: &str, password: &str);
+    pub fn _connect(ssid: *const u8,ssid_length: usize, password: *const u8,password_length: usize);
     #[link_name = "wifi_status"]
     pub fn _status() -> i32;
     #[link_name = "wifi_localip"]
@@ -47,7 +47,7 @@ extern {
 
     // Interrupts
     #[link_name = "subscribe_interrupt"]
-    pub fn _sub_interrupt(pin: u32, f: fn(&str, &str, u32), mode: u32);
+    pub fn _sub_interrupt(pin: u32, f: fn(*const u8,usize,*const u8,usize, u32), mode: u32);
     #[link_name = "unsubscribe_interrupt"]
     pub fn _unsub_interrupt(pin: u32);
 
@@ -63,9 +63,9 @@ extern {
     #[link_name = "mqtt_publish"]
     pub fn _mqtt_publish(topic: *const u8, topic_length: usize, payload: *const u8, payload_length: usize) -> i32;
     #[link_name = "mqtt_subscribe"]
-    pub fn _mqtt_subscribe(topic: *const u8, topic_length: usize, f: fn(&str, &str, u32)) -> i32;
+    pub fn _mqtt_subscribe(topic: *const u8, topic_length: usize, f: fn(*const u8,usize, *const u8,usize, u32)) -> i32;
     #[link_name = "mqtt_unsubscribe"]
-    pub fn _mqtt_unsubscribe(topic: *const u8, topic_length: usize, f: fn(&str, &str, u32)) -> i32;
+    pub fn _mqtt_unsubscribe(topic: *const u8, topic_length: usize, f: fn(*const u8,usize, *const u8,usize, u32)) -> i32;
     #[link_name = "mqtt_loop"]
     pub fn _mqtt_loop() -> i32;
 }

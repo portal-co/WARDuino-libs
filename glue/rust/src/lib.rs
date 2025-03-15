@@ -34,13 +34,16 @@
 //! ```
 
 #![crate_name = "warduino"]
+#![no_std]
+extern crate alloc;
 
 extern crate num;
 #[macro_use]
 extern crate num_derive;
 
+use alloc::{borrow::ToOwned, string::String};
+use core::mem;
 use linking::*;
-use std::mem;
 
 mod linking;
 
@@ -91,28 +94,46 @@ pub enum PinMode {
 }
 
 /// Returns the number of milliseconds passed since the current program started to run.
-pub fn millis() -> u32 { unsafe { _millis() } }
+pub fn millis() -> u32 {
+    unsafe { _millis() }
+}
 
 /// Pauses the program for the amount of time (in milliseconds).
-pub fn delay(ms: u32) { unsafe { _delay(ms); } }
+pub fn delay(ms: u32) {
+    unsafe {
+        _delay(ms);
+    }
+}
 
 /// Pauses the program for the amount of time (in seconds)
-pub fn sleep(s: u32) { delay(s * 1000); }
+pub fn sleep(s: u32) {
+    delay(s * 1000);
+}
 
 /// Configures the [PinMode] of the specified pin.
-pub fn pin_mode(pin: u32, mode: PinMode) { unsafe { _pinMode(pin, mode as u32) } }
+pub fn pin_mode(pin: u32, mode: PinMode) {
+    unsafe { _pinMode(pin, mode as u32) }
+}
 
 /// Write the voltage to a specified digital pin, either [HIGH](PinVoltage) or [LOW](PinVoltage).
-pub fn digital_write(pin: u32, value: PinVoltage) { unsafe { _digitalWrite(pin, value as u32) } }
+pub fn digital_write(pin: u32, value: PinVoltage) {
+    unsafe { _digitalWrite(pin, value as u32) }
+}
 
 /// Reads the value from a specified digital pin, either [HIGH](PinVoltage) or [LOW](PinVoltage).
-pub fn digital_read(pin: u32) -> PinVoltage { unsafe { num::FromPrimitive::from_u32(_digitalRead(pin)).unwrap() } }
+pub fn digital_read(pin: u32) -> PinVoltage {
+    unsafe { num::FromPrimitive::from_u32(_digitalRead(pin)).unwrap() }
+}
 
 /// Reads the value from the specified analog pin.
-pub fn analog_read(pin: u32) -> i32 { unsafe { _analogRead(pin) } }
+pub fn analog_read(pin: u32) -> i32 {
+    unsafe { _analogRead(pin) }
+}
 
 /// Writes the value to the specified analog pin.
-pub fn analog_write(pin: u32, signal: u32) -> i32 { unsafe { _analogWrite(pin, signal) } }
+pub fn analog_write(pin: u32, signal: u32) -> i32 {
+    unsafe { _analogWrite(pin, signal) }
+}
 
 /// The status of the Wi-Fi connection
 #[derive(FromPrimitive, PartialEq)]
@@ -136,59 +157,91 @@ pub enum WiFiStatus {
 }
 
 /// Connect to Wi-Fi network with SSID and password
-pub fn wifi_connect(ssid: &str, password: &str) { unsafe { _connect(ssid, password) } }
+pub fn wifi_connect(ssid: &str, password: &str) {
+    unsafe { _connect(ssid.as_ptr(), ssid.len(), password.as_ptr(), password.len()) }
+}
 
 /// Returns the status of the Wi-Fi connection of the board
-pub fn wifi_status() -> WiFiStatus { unsafe { num::FromPrimitive::from_i32(_status()).unwrap() } }
+pub fn wifi_status() -> WiFiStatus {
+    unsafe { num::FromPrimitive::from_i32(_status()).unwrap() }
+}
 
 /// Returns whether the board si still connected to Wi-Fi
-pub fn wifi_connected() -> bool { wifi_status() == WiFiStatus::Connected }
+pub fn wifi_connected() -> bool {
+    wifi_status() == WiFiStatus::Connected
+}
 
 /// Returns the local IP address of the board
-pub fn wifi_localip() -> String {
+pub fn with_wifi_localip<T>(then: impl FnOnce(&str) -> T) -> T {
     unsafe {
         let buffer: [u8; 100] = [0; 100];
-        _localip(buffer.as_ptr(), mem::size_of_val(&buffer) / mem::size_of::<u8>());
-        std::str::from_utf8(&buffer).unwrap().to_owned()
+        _localip(
+            buffer.as_ptr(),
+            mem::size_of_val(&buffer) / mem::size_of::<u8>(),
+        );
+        then(core::str::from_utf8(&buffer).unwrap())
     }
 }
 
 const BUFFER_SIZE: usize = 250;
 
 /// Send an HTTP GET request.
-pub fn get(url: &str) -> &str {
-    const BUFFER: &[u8; BUFFER_SIZE] = &[0; BUFFER_SIZE];
-    unsafe { 
-        _get(url.as_ptr(), url.len(), BUFFER.as_ptr(), mem::size_of_val(BUFFER) / mem::size_of::<u8>());
-        std::str::from_utf8_unchecked(BUFFER)
+pub fn with_get<T>(url: &str, then: impl FnOnce(&str) -> T) -> T {
+    let BUFFER: [u8; BUFFER_SIZE] = [0; BUFFER_SIZE];
+    unsafe {
+        _get(
+            url.as_ptr(),
+            url.len(),
+            BUFFER.as_ptr(),
+            mem::size_of_val(&BUFFER) / mem::size_of::<u8>(),
+        );
+        then(core::str::from_utf8_unchecked(&BUFFER))
     }
 }
 
 /// Send an HTTP POST request.
-pub fn post(options: &PostOptions) -> &str {
-    const BUFFER: &[u8; BUFFER_SIZE] = &[0; BUFFER_SIZE];
+pub fn with_post<T>(options: &PostOptions, then: impl FnOnce(&str) -> T) -> T {
+    let BUFFER: [u8; BUFFER_SIZE] = [0; BUFFER_SIZE];
     unsafe {
-        _post(options.uri.as_ptr(), options.uri.len(),
-              options.body.as_ptr(), options.body.len(),
-              options.headers.content_type.as_ptr(), options.headers.content_type.len(),
-              options.headers.authorization.as_ptr(), options.headers.authorization.len(),
-              BUFFER.as_ptr(), mem::size_of_val(BUFFER) / mem::size_of::<u8>());
-        std::str::from_utf8_unchecked(BUFFER)
+        _post(
+            options.uri.as_ptr(),
+            options.uri.len(),
+            options.body.as_ptr(),
+            options.body.len(),
+            options.headers.content_type.as_ptr(),
+            options.headers.content_type.len(),
+            options.headers.authorization.as_ptr(),
+            options.headers.authorization.len(),
+            BUFFER.as_ptr(),
+            mem::size_of_val(&BUFFER) / mem::size_of::<u8>(),
+        );
+        then(core::str::from_utf8_unchecked(&BUFFER))
     }
-
 }
 
 /// Print a string to the serial port.
-pub fn print(text: &str) { unsafe { _print_buffer(text.as_ptr(), text.len()) } }
+pub fn print(text: &str) {
+    unsafe { _print_buffer(text.as_ptr(), text.len()) }
+}
 
 /// Print an integer to the serial port.
-pub fn print_int(integer: i32) { unsafe { _print_int(integer) } }
+pub fn print_int(integer: i32) {
+    unsafe { _print_int(integer) }
+}
 
 /// subscribe a callback function to an interrupt on the given pin
-pub fn sub_interrupt(pin: u32, mode: InterruptMode, f: fn(&str, &str, u32)) { unsafe { _sub_interrupt(pin, f, mode as u32) } }
+pub fn sub_interrupt(
+    pin: u32,
+    mode: InterruptMode,
+    f: fn(*const u8, usize, *const u8, usize, u32),
+) {
+    unsafe { _sub_interrupt(pin, f, mode as u32) }
+}
 
 /// Unsubscribe all callback functions for a given pin
-pub fn unsub_interrupt(pin: u32) { unsafe { _unsub_interrupt(pin) } }
+pub fn unsub_interrupt(pin: u32) {
+    unsafe { _unsub_interrupt(pin) }
+}
 
 /// The status of the MQTT connection
 #[derive(FromPrimitive, PartialEq)]
@@ -216,26 +269,41 @@ pub enum MQTTStatus {
 }
 
 /// Configure a MQTT broker
-pub fn mqtt_init(server: &str, port: u32) { unsafe { _mqtt_init(server.as_ptr(), server.len(), port) } }
+pub fn mqtt_init(server: &str, port: u32) {
+    unsafe { _mqtt_init(server.as_ptr(), server.len(), port) }
+}
 
 /// Connect to the Configured MQTT broker with client_id
-pub fn mqtt_connect(client_id: &str) -> bool { unsafe { _mqtt_connect(client_id.as_ptr(), client_id.len()) != 0 } }
+pub fn mqtt_connect(client_id: &str) -> bool {
+    unsafe { _mqtt_connect(client_id.as_ptr(), client_id.len()) != 0 }
+}
 
 /// Returns whether the board is still connected to the MQTT broker
-pub fn mqtt_connected() -> bool { mqtt_state() == MQTTStatus::Connected }
+pub fn mqtt_connected() -> bool {
+    mqtt_state() == MQTTStatus::Connected
+}
 
 /// Returns the status of the connection to the MQTT broker
-pub fn mqtt_state() -> MQTTStatus { unsafe { num::FromPrimitive::from_i32(_mqtt_state()).unwrap() } }
+pub fn mqtt_state() -> MQTTStatus {
+    unsafe { num::FromPrimitive::from_i32(_mqtt_state()).unwrap() }
+}
 
 /// Publish a message on an MQTT topic
-pub fn mqtt_publish(topic: &str, payload: &str) -> i32 { unsafe { _mqtt_publish(topic.as_ptr(), topic.len(), payload.as_ptr(), payload.len()) } }
+pub fn mqtt_publish(topic: &str, payload: &str) -> i32 {
+    unsafe { _mqtt_publish(topic.as_ptr(), topic.len(), payload.as_ptr(), payload.len()) }
+}
 
 /// Subscribe a callback function to an MQTT topic
-pub fn mqtt_subscribe(topic: &str, f: fn(&str, &str, u32)) -> i32 { unsafe { _mqtt_subscribe(topic.as_ptr(), topic.len(), f) } }
+pub fn mqtt_subscribe(topic: &str, f: fn(*const u8, usize, *const u8, usize, u32)) -> i32 {
+    unsafe { _mqtt_subscribe(topic.as_ptr(), topic.len(), f) }
+}
 
 /// Unsubscribe a callback function from an MQTT topic
-pub fn mqtt_unsubscribe(topic: &str, f: fn(&str, &str, u32)) -> i32 { unsafe { _mqtt_unsubscribe(topic.as_ptr(), topic.len(), f) } }
+pub fn mqtt_unsubscribe(topic: &str, f: fn(*const u8, usize, *const u8, usize, u32)) -> i32 {
+    unsafe { _mqtt_unsubscribe(topic.as_ptr(), topic.len(), f) }
+}
 
 /// Check for messages from the MQTT broker
-pub fn mqtt_poll() -> i32 { unsafe { _mqtt_loop() } }
-
+pub fn mqtt_poll() -> i32 {
+    unsafe { _mqtt_loop() }
+}
